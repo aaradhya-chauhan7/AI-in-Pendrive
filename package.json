@@ -1,0 +1,64 @@
+{
+  "name": "my-local-ai",
+  "version": "1.0.0",
+  "description": "Standalone offline desktop AI chat client powered by node-llama-cpp and Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:system": "/usr/bin/electron .",
+    "build": "electron-builder",
+    "build:linux": "electron-builder --linux AppImage",
+    "build:win": "electron-builder --win nsis",
+    "build:mac": "electron-builder --mac dmg"
+  },
+  "keywords": [
+    "electron",
+    "llama",
+    "llm",
+    "gguf",
+    "node-llama-cpp",
+    "ai-chat"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "node-llama-cpp": "^3.4.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.mylocalai.app",
+    "productName": "MyLocalAI",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "models",
+        "to": "models",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}

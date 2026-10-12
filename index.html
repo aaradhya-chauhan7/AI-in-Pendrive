@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local AI</title>
+  <style>
+    :root {
+      --bg: #090c13;
+      --bg-panel: #111622;
+      --bg-hover: #192132;
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #6366f1;
+      --text: #e2e8f0;
+      --text-dim: #718096;
+      --user-bubble: #312e81;
+      --bot-bubble: #151b28;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Minimal Draggable Header / Nav Bar */
+    header {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      -webkit-app-region: drag;
+      height: 48px;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      -webkit-app-region: no-drag;
+    }
+
+    /* ASCII Header Badge */
+    .ascii-badge {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 13px;
+      color: #818cf8;
+      letter-spacing: -0.5px;
+    }
+
+    .model-selector-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+      max-width: 280px;
+    }
+
+    .btn {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.15s;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: var(--bg-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #4f46e5;
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+
+    /* Window Controls */
+    .win-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .win-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+
+    .win-btn.close:hover {
+      background: #dc2626;
+      color: #ffffff;
+    }
+
+    /* Chat View */
+    #chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      user-select: text;
+    }
+
+    #chat-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    #chat-container::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    /* Clean ASCII Welcome Screen */
+    .ascii-welcome {
+      margin: auto;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .ascii-art {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.25;
+      color: #818cf8;
+      white-space: pre;
+      text-align: left;
+    }
+
+    .ascii-sub {
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+
+    /* Message Bubbles */
+    .msg-group {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .msg-group.user {
+      align-items: flex-end;
+    }
+
+    .msg-group.assistant {
+      align-items: flex-start;
+    }
+
+    .sender-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+      padding: 0 4px;
+    }
+
+    .bubble {
+      max-width: 82%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .bubble.user {
+      background: var(--user-bubble);
+      color: #ffffff;
+      border-bottom-right-radius: 3px;
+      white-space: pre-wrap;
+    }
+
+    .bubble.assistant {
+      background: var(--bot-bubble);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-bottom-left-radius: 3px;
+    }
+
+    .bubble.assistant.streaming::after {
+      content: '▋';
+      display: inline-block;
+      margin-left: 2px;
+      color: #818cf8;
+      animation: blink 0.75s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* Markdown Rich Styling */
+    .bubble.assistant h1,
+    .bubble.assistant h2,
+    .bubble.assistant h3,
+    .bubble.assistant h4 {
+      color: #f1f5f9;
+      margin: 12px 0 6px 0;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .bubble.assistant h1:first-child,
+    .bubble.assistant h2:first-child,
+    .bubble.assistant h3:first-child {
+      margin-top: 0;
+    }
+
+    .bubble.assistant h1 { font-size: 18px; }
+    .bubble.assistant h2 { font-size: 16px; }
+    .bubble.assistant h3 { font-size: 14.5px; }
+
+    .bubble.assistant p {
+      margin: 6px 0;
+    }
+
+    .bubble.assistant p:first-child {
+      margin-top: 0;
+    }
+
+    .bubble.assistant p:last-child {
+      margin-bottom: 0;
+    }
+
+    .bubble.assistant ul,
+    .bubble.assistant ol {
+      margin: 6px 0 6px 20px;
+    }
+
+    .bubble.assistant li {
+      margin: 3px 0;
+    }
+
+    .bubble.assistant hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 12px 0;
+    }
+
+    .bubble.assistant blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 4px 10px;
+      margin: 8px 0;
+      color: #94a3b8;
+      background: rgba(99, 102, 241, 0.05);
+      border-radius: 0 4px 4px 0;
+    }
+
+    .bubble.assistant code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: #cbd5e1;
+    }
+
+    .bubble.assistant pre {
+      background: #090c13;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 10px 0;
+      overflow-x: auto;
+    }
+
+    .bubble.assistant pre code {
+      background: transparent;
+      border: none;
+      padding: 0;
+      display: block;
+      line-height: 1.5;
+      color: #e2e8f0;
+    }
+
+    .bubble.assistant table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+
+    .bubble.assistant th,
+    .bubble.assistant td {
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    .bubble.assistant th {
+      background: rgba(255, 255, 255, 0.04);
+      font-weight: 600;
+    }
+
+    /* Attached File Widget Card */
+    .attachment-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: #141b2c;
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+      animation: slideInUp 0.18s ease-out;
+    }
+
+    @keyframes slideInUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .attachment-card-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .attachment-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      color: #818cf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .attachment-meta {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .attachment-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #f1f5f9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .attachment-info {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .attachment-badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      margin-left: 6px;
+    }
+
+    .attachment-btn-remove {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+
+    .attachment-btn-remove:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+    }
+
+    /* Floating Status Notification */
+    .floating-toast {
+      position: absolute;
+      top: 56px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(16, 22, 38, 0.95);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #e2e8f0;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .floating-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(4px);
+    }
+
+    /* Footer Input Area */
+    footer {
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+    }
+
+    .input-box {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-box:focus-within {
+      border-color: var(--accent);
+    }
+
+    textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.5;
+      resize: none;
+      max-height: 140px;
+      min-height: 24px;
+    }
+
+    .input-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .input-left-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Upload button */
+    .btn-upload {
+      padding: 5px 10px;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    /* Settings Slide Panel */
+    .settings-panel {
+      position: absolute;
+      top: 48px;
+      right: 0;
+      bottom: 0;
+      width: 320px;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 50;
+      transition: transform 0.2s ease;
+    }
+
+    .settings-panel.hidden {
+      display: none;
+    }
+
+    .settings-panel h3 {
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .setting-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .setting-item select, .setting-item input[type="range"] {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Clean Top Bar (Frameless & Draggable) -->
+  <header>
+    <div class="nav-left">
+      <div class="ascii-badge">▲ [LOCAL.AI]</div>
+
+      <div class="model-selector-group">
+        <select id="model-select">
+          <option value="" disabled selected>Loading models...</option>
+        </select>
+        <button id="btn-load" class="btn btn-primary" disabled>Load</button>
+      </div>
+    </div>
+
+    <div class="nav-right">
+      <button id="btn-folder" class="btn" title="Open Models Folder">Folder</button>
+      <button id="btn-settings-toggle" class="btn" title="Settings">Config</button>
+      <button id="btn-win-min" class="win-btn" title="Minimize">−</button>
+      <button id="btn-win-max" class="win-btn" title="Maximize">□</button>
+      <button id="btn-win-close" class="win-btn close" title="Close">✕</button>
+    </div>
+  </header>
+
+  <!-- Floating Attachment Notification Toast -->
+  <div id="floating-attachment-toast" class="floating-toast">
+    <span style="color: #34d399;">✓</span>
+    <span id="floating-toast-text">File attached to message</span>
+  </div>
+
+  <!-- Central Chat Screen -->
+  <main id="chat-container">
+    <div id="ascii-welcome" class="ascii-welcome">
+      <pre class="ascii-art">
+   __  __         _                 _       _ 
+  |  \/  | _   _ | |     ___   ___ (_) ___ (_)
+  | |\/| || | | || |    / _ \ / __|| |/ __|| |
+  | |  | || |_| || |___| (_) | (__ | |\__ \| |
+  |_|  |_| \__, ||_____|\___/ \___||_||___/|_|
+           |___/                              
+      </pre>
+      <div class="ascii-sub">Select and load a GGUF model to start chatting</div>
+    </div>
+  </main>
+
+  <!-- Input Area -->
+  <footer>
+    <div class="input-box">
+      <!-- Attached File Information Widget -->
+      <div id="attachment-widget" class="attachment-card" style="display: none;">
+        <div class="attachment-card-left">
+          <div class="attachment-icon">📎</div>
+          <div class="attachment-meta">
+            <div>
+              <span id="attachment-name" class="attachment-title"></span>
+              <span class="attachment-badge">Ready</span>
+            </div>
+            <span id="attachment-details" class="attachment-info"></span>
+          </div>
+        </div>
+        <button id="btn-remove-attachment" class="attachment-btn-remove" title="Remove attachment">✕ Remove</button>
+      </div>
+
+      <textarea id="prompt-input" rows="1" placeholder="Load a model to chat..." disabled></textarea>
+
+      <div class="input-bar">
+        <div class="input-left-tools">
+          <button id="btn-upload" class="btn btn-upload" title="Upload file into chat">
+            <span>+ Attach File</span>
+          </button>
+          <button id="btn-clear" class="btn" style="padding: 4px 8px; font-size: 11px;">Clear</button>
+        </div>
+
+        <button id="btn-send" class="btn btn-primary" disabled>Send</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Clean Settings Side Drawer -->
+  <div id="settings-panel" class="settings-panel hidden">
+    <h3>
+      <span>Configuration</span>
+      <button id="btn-close-settings" class="win-btn">✕</button>
+    </h3>
+
+    <div class="setting-item">
+      <span>Hardware Acceleration</span>
+      <select id="select-gpu-type">
+        <option value="auto" selected>CUDA (GPU)</option>
+        <option value="vulkan">Vulkan</option>
+        <option value="cpu">CPU Only</option>
+      </select>
+    </div>
+
+    <div class="setting-item">
+      <span>GPU Offload</span>
+      <select id="select-gpu-layers">
+        <option value="auto" selected>Auto Fit VRAM</option>
+        <option value="max">Max Layers</option>
+        <option value="0">CPU (0 Layers)</option>
+      </select>
+    </div>
+
+    <div class="setting-item">
+      <span>Temperature (<span id="temp-val">0.7</span>)</span>
+      <input type="range" id="input-temp" min="0" max="2" step="0.1" value="0.7">
+    </div>
+
+    <div class="setting-item">
+      <span>Context Size</span>
+      <select id="select-context">
+        <option value="2048">2048 tokens</option>
+        <option value="4096" selected>4096 tokens</option>
+        <option value="8192">8192 tokens</option>
+      </select>
+    </div>
+
+    <div style="margin-top: auto;">
+      <button id="btn-unload" class="btn" style="width: 100%; color: #ef4444; border-color: rgba(239,68,68,0.3);">Unload Model</button>
+    </div>
+  </div>
+
+  <script>
+    // Window controls
+    document.getElementById('btn-win-min').addEventListener('click', () => window.electronAPI.minimizeWindow());
+    document.getElementById('btn-win-max').addEventListener('click', () => window.electronAPI.maximizeWindow());
+    document.getElementById('btn-win-close').addEventListener('click', () => window.electronAPI.closeWindow());
+
+    // UI elements
+    const modelSelect = document.getElementById('model-select');
+    const btnLoad = document.getElementById('btn-load');
+    const btnFolder = document.getElementById('btn-folder');
+    const btnSettingsToggle = document.getElementById('btn-settings-toggle');
+    const settingsPanel = document.getElementById('settings-panel');
+    const btnCloseSettings = document.getElementById('btn-close-settings');
+    const btnUnload = document.getElementById('btn-unload');
+
+    const chatContainer = document.getElementById('chat-container');
+    const asciiWelcome = document.getElementById('ascii-welcome');
+    const promptInput = document.getElementById('prompt-input');
+    const btnSend = document.getElementById('btn-send');
+    const btnClear = document.getElementById('btn-clear');
+    const btnUpload = document.getElementById('btn-upload');
+    const attachmentWidget = document.getElementById('attachment-widget');
+    const attachmentName = document.getElementById('attachment-name');
+    const attachmentDetails = document.getElementById('attachment-details');
+    const btnRemoveAttachment = document.getElementById('btn-remove-attachment');
+    const floatingToast = document.getElementById('floating-attachment-toast');
+    const floatingToastText = document.getElementById('floating-toast-text');
+
+    const selectGpuType = document.getElementById('select-gpu-type');
+    const selectGpuLayers = document.getElementById('select-gpu-layers');
+    const inputTemp = document.getElementById('input-temp');
+    const tempVal = document.getElementById('temp-val');
+    const selectContext = document.getElementById('select-context');
+
+    let isModelLoaded = false;
+    let isGenerating = false;
+    let currentAssistantBubble = null;
+    let attachedFile = null;
+    let toastTimeout = null;
+
+    // Toast helper
+    function showFloatingToast(msg) {
+      if (toastTimeout) clearTimeout(toastTimeout);
+      floatingToastText.textContent = msg;
+      floatingToast.classList.add('show');
+      toastTimeout = setTimeout(() => {
+        floatingToast.classList.remove('show');
+      }, 3000);
+    }
+
+    // Toggle Settings
+    btnSettingsToggle.addEventListener('click', () => {
+      settingsPanel.classList.toggle('hidden');
+    });
+    btnCloseSettings.addEventListener('click', () => {
+      settingsPanel.classList.add('hidden');
+    });
+
+    inputTemp.addEventListener('input', () => {
+      tempVal.textContent = inputTemp.value;
+    });
+
+    // Auto-resizing textarea
+    promptInput.addEventListener('input', () => {
+      promptInput.style.height = 'auto';
+      promptInput.style.height = Math.min(promptInput.scrollHeight, 140) + 'px';
+    });
+
+    // Models scan
+    async function refreshModels() {
+      modelSelect.innerHTML = '<option value="" disabled selected>Scanning...</option>';
+      try {
+        const res = await window.electronAPI.getLocalModels();
+        modelSelect.innerHTML = '';
+        if (res.success && res.models.length > 0) {
+          res.models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.name;
+            opt.textContent = m.name;
+            modelSelect.appendChild(opt);
+          });
+          btnLoad.disabled = false;
+        } else {
+          modelSelect.innerHTML = '<option value="" disabled selected>No .gguf models</option>';
+          btnLoad.disabled = true;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    btnFolder.addEventListener('click', () => window.electronAPI.openModelsFolder());
+
+    // File Upload Handler
+    btnUpload.addEventListener('click', async () => {
+      try {
+        const res = await window.electronAPI.selectAndReadFile();
+        if (res.success) {
+          attachedFile = res;
+          attachmentName.textContent = res.fileName;
+          attachmentDetails.textContent = `${res.fileSize} • Included in next prompt context`;
+          attachmentWidget.style.display = 'flex';
+          showFloatingToast(`Attached "${res.fileName}" (${res.fileSize})`);
+          promptInput.focus();
+        }
+      } catch (err) {
+        console.error('File attach error:', err);
+      }
+    });
+
+    btnRemoveAttachment.addEventListener('click', () => {
+      attachedFile = null;
+      attachmentWidget.style.display = 'none';
+      attachmentName.textContent = '';
+      attachmentDetails.textContent = '';
+      showFloatingToast('Attachment removed');
+    });
+
+    // Load Model Handler
+    btnLoad.addEventListener('click', async () => {
+      const selected = modelSelect.value;
+      if (!selected) return;
+
+      btnLoad.disabled = true;
+      btnLoad.textContent = 'Loading...';
+      promptInput.disabled = true;
+      btnSend.disabled = true;
+
+      const opts = {
+        gpuType: selectGpuType.value,
+        gpuLayers: selectGpuLayers.value,
+        contextSize: Number(selectContext.value),
+        temperature: Number(inputTemp.value)
+      };
+
+      try {
+        const res = await window.electronAPI.loadModel(selected, opts);
+        if (res.success) {
+          isModelLoaded = true;
+          btnLoad.textContent = 'Loaded';
+          promptInput.disabled = false;
+          promptInput.placeholder = 'Type a message...';
+          btnSend.disabled = false;
+          promptInput.focus();
+        } else {
+          alert('Failed to load: ' + res.error);
+          btnLoad.textContent = 'Load';
+        }
+      } catch (err) {
+        alert(err.message);
+        btnLoad.textContent = 'Load';
+      } finally {
+        btnLoad.disabled = false;
+      }
+    });
+
+    // Unload Model
+    btnUnload.addEventListener('click', async () => {
+      await window.electronAPI.unloadModel();
+      isModelLoaded = false;
+      btnLoad.textContent = 'Load';
+      promptInput.disabled = true;
+      promptInput.placeholder = 'Load a model to chat...';
+      btnSend.disabled = true;
+      settingsPanel.classList.add('hidden');
+    });
+
+    // Clear Chat
+    btnClear.addEventListener('click', () => {
+      chatContainer.innerHTML = '';
+    });
+
+    // Escape HTML special characters
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Lightweight in-process Markdown Parser
+    function renderMarkdown(md) {
+      if (!md) return '';
+
+      // Normalize line breaks
+      let src = md.replace(/\r\n/g, '\n');
+
+      // 1. Extract and preserve code blocks
+      const codeBlocks = [];
+      src = src.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+        const id = `%%CODE_BLOCK_${codeBlocks.length}%%`;
+        codeBlocks.push(`<pre><code>${escapeHtml(code.trimEnd())}</code></pre>`);
+        return id;
+      });
+
+      // 2. Headings (# H1 to #### H4)
+      src = src.replace(/^#### (.*$)/gim, '<h4>$1</h4>');
+      src = src.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+      src = src.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+      src = src.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+      // 3. Horizontal rules
+      src = src.replace(/^(?:---|\*\*\*|___)\s*$/gim, '<hr>');
+
+      // 4. Blockquotes
+      src = src.replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>');
+
+      // 5. Bold & Italic
+      src = src.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+      src = src.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      src = src.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      src = src.replace(/___(.*?)___/g, '<strong><em>$1</em></strong>');
+      src = src.replace(/__(.*?)__/g, '<strong>$1</strong>');
+      src = src.replace(/_(.*?)_/g, '<em>$1</em>');
+
+      // 6. Inline code
+      src = src.replace(/`([^`]+)`/g, (match, p1) => `<code>${escapeHtml(p1)}</code>`);
+
+      // 7. Unordered lists (- or *)
+      src = src.replace(/^\s*[-*]\s+(.*)$/gim, '<ul><li>$1</li></ul>');
+      src = src.replace(/<\/ul>\s*<ul>/gim, '');
+
+      // 8. Ordered lists (1. 2. 3.)
+      src = src.replace(/^\s*\d+\.\s+(.*)$/gim, '<ol><li>$1</li></ol>');
+      src = src.replace(/<\/ol>\s*<ol>/gim, '');
+
+      // 9. Links [text](url)
+      src = src.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--accent);">$1</a>');
+
+      // 10. Paragraphs & Line Breaks
+      const lines = src.split('\n');
+      let out = '';
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith('<h') || line.startsWith('<hr') || line.startsWith('<ul') ||
+            line.startsWith('<ol') || line.startsWith('<blockquote') || line.startsWith('%%CODE_BLOCK_')) {
+          out += line;
+        } else if (line.trim() === '') {
+          out += '<br>';
+        } else {
+          out += `<p>${line}</p>`;
+        }
+      }
+
+      // 11. Re-insert preserved code blocks
+      codeBlocks.forEach((block, idx) => {
+        out = out.replace(new RegExp(`%%CODE_BLOCK_${idx}%%`, 'g'), block);
+      });
+
+      return out;
+    }
+
+    // Append Message helper
+    function appendMessage(sender, text = '') {
+      if (asciiWelcome && asciiWelcome.parentNode) {
+        asciiWelcome.remove();
+      }
+
+      const group = document.createElement('div');
+      group.className = `msg-group ${sender}`;
+
+      const nameLabel = document.createElement('div');
+      nameLabel.className = 'sender-name';
+      nameLabel.textContent = sender === 'user' ? 'User' : 'assistant';
+
+      const bubble = document.createElement('div');
+      bubble.className = `bubble ${sender}`;
+
+      if (sender === 'user') {
+        bubble.textContent = text;
+      } else {
+        bubble.innerHTML = renderMarkdown(text);
+      }
+
+      group.appendChild(nameLabel);
+      group.appendChild(bubble);
+      chatContainer.appendChild(group);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      return bubble;
+    }
+
+    // Token streaming listener
+    let assistantRawText = '';
+    window.electronAPI.onChatToken((token) => {
+      if (currentAssistantBubble) {
+        assistantRawText += token;
+        currentAssistantBubble.innerHTML = renderMarkdown(assistantRawText);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+    });
+
+    // Send Prompt
+    async function handleSend() {
+      let text = promptInput.value.trim();
+      if ((!text && !attachedFile) || !isModelLoaded || isGenerating) return;
+
+      isGenerating = true;
+      promptInput.value = '';
+      promptInput.style.height = 'auto';
+      promptInput.disabled = true;
+      btnSend.disabled = true;
+
+      // Construct user prompt with attached file if present
+      let userPrompt = text;
+      let displayMessage = text;
+
+      if (attachedFile) {
+        const fileContent = attachedFile.content;
+        const fileTag = `[File: ${attachedFile.fileName}]\n\`\`\`\n${fileContent}\n\`\`\`\n\n`;
+        userPrompt = fileTag + (text || 'Please analyze this file.');
+        displayMessage = `📎 [Attached: ${attachedFile.fileName}]\n${text}`;
+
+        attachedFile = null;
+        attachmentWidget.style.display = 'none';
+        attachmentName.textContent = '';
+        attachmentDetails.textContent = '';
+      }
+
+      // Display user message in chat
+      appendMessage('user', displayMessage);
+
+      // Create assistant placeholder
+      assistantRawText = '';
+      currentAssistantBubble = appendMessage('assistant', '');
+      currentAssistantBubble.classList.add('streaming');
+
+      try {
+        const res = await window.electronAPI.sendPrompt(userPrompt, {
+          temperature: Number(inputTemp.value)
+        });
+        if (res.success && res.response) {
+          assistantRawText = res.response;
+          currentAssistantBubble.innerHTML = renderMarkdown(assistantRawText);
+        } else if (!res.success) {
+          if (!assistantRawText) {
+            currentAssistantBubble.innerHTML = `<code>Error: ${escapeHtml(res.error)}</code>`;
+          }
+        }
+      } catch (err) {
+        if (!assistantRawText) {
+          currentAssistantBubble.innerHTML = `<code>Error: ${escapeHtml(err.message)}</code>`;
+        }
+      } finally {
+        if (currentAssistantBubble) {
+          currentAssistantBubble.classList.remove('streaming');
+          currentAssistantBubble = null;
+        }
+        assistantRawText = '';
+        isGenerating = false;
+        promptInput.disabled = false;
+        btnSend.disabled = false;
+        promptInput.focus();
+      }
+    }
+
+    btnSend.addEventListener('click', handleSend);
+
+    promptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', refreshModels);
+  </script>
+</body>
+</html>
